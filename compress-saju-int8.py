@@ -6,7 +6,7 @@ from llmcompressor.transformers import SparseAutoModelForCausalLM, oneshot
 from llmcompressor.transformers.compression.helpers import calculate_offload_device_map
 
 # 1) Select model and load it.
-MODEL_ID = "/home/chang/t9/release-models/google-gemma-2-9b-saju-240828"
+MODEL_ID = "/home/chang/t9/release-models/google-gemma-2-9b-saju-240906"
 device_map = calculate_offload_device_map(MODEL_ID, reserve_for_hessians=True, num_gpus=1)
 model = SparseAutoModelForCausalLM.from_pretrained(
     MODEL_ID,
@@ -21,7 +21,7 @@ DATASET_SPLIT = "train_sft"
 
 # Select number of samples. 512 samples is a good place to start.
 # Increasing the number of samples can improve accuracy.
-NUM_CALIBRATION_SAMPLES = 512
+NUM_CALIBRATION_SAMPLES = 4096
 MAX_SEQUENCE_LENGTH = 2048
 
 # Load dataset and preprocess.
