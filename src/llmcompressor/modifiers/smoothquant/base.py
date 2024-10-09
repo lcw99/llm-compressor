@@ -5,18 +5,18 @@ import torch
 from loguru import logger
 from torch.nn import Module
 
-from llmcompressor.core import Event, State
+from llmcompressor.core import State
 from llmcompressor.modifiers import Modifier
+from llmcompressor.modifiers.smoothquant.utils import (
+    get_layer_mappings_from_architecture,
+    handle_mapping_resolution_errors,
+)
 from llmcompressor.modifiers.utils.pytorch_helpers import run_calibration_forward
 from llmcompressor.utils.fsdp.helpers import get_fsdp_parent
 from llmcompressor.utils.pytorch.module import get_layers, get_matching_layer
 
 MINIMUM_SMOOTHING_SCALE = 1e-5
 
-DEFAULT_SMOOTHQUANT_MAPPINGS = [
-    [["re:.*q_proj", "re:.*k_proj", "re:.*v_proj"], "re:.*input_layernorm"],
-    [["re:.*gate_proj", "re:.*up_proj"], "re:.*post_attention_layernorm"],
-]
 
 __all__ = ["SmoothQuantScale", "SmoothQuantMapping", "SmoothQuantModifier"]
 
@@ -81,8 +81,9 @@ class SmoothQuantModifier(Modifier):
         Each entry of the mapping list should be a list itself, in which the first
         entry is a list of layers who share the same input activation (the one to be
         to smoothed) and the second entry is the layer whose output is scaled to
-        achieve the smoothing.
-        If regex is used, it matches layers with the largest overlap in module name.
+        achieve the smoothing. If regex is used, it matches layers with the largest
+        overlap in module name.  If not supplied the argument will be inferred from the
+        model architecture.
      :param ignore: list of layers to ignore, even if they match a regex in mappings.
         It should match the name of layers whose outputs are scaled to achieve
         smoothing (the second entry of the mappings list).
@@ -93,7 +94,7 @@ class SmoothQuantModifier(Modifier):
     """
 
     smoothing_strength: float = 0.5
-    mappings: List[Tuple] = DEFAULT_SMOOTHQUANT_MAPPINGS
+    mappings: Optional[List[Tuple]] = None
     ignore: Optional[List[str]] = None
     num_calibration_steps: Optional[int] = None
     calibration_function: Optional[Callable] = None
@@ -101,9 +102,6 @@ class SmoothQuantModifier(Modifier):
     hooks_: Optional[List] = None
     resolved_mappings_: Optional[List] = None
     scales_: Optional[Dict] = None
-
-    def on_initialize_structure(self, state: State, **kwargs):
-        pass  # nothing needed for this modifier
 
     def on_initialize(self, state: State, **kwargs) -> bool:
         """
@@ -124,6 +122,7 @@ class SmoothQuantModifier(Modifier):
             )
 
         self.ignore = [] if not self.ignore else self.ignore
+        self.mappings = self._infer_mappings_from_model(state.model)
         self.resolved_mappings_ = self._resolve_mappings(state.model)
         self.scales_ = {}
 
@@ -135,18 +134,6 @@ class SmoothQuantModifier(Modifier):
         self._apply_smoothing(state.model)
 
         return True
-
-    def on_start(self, state: State, event: Event, **kwargs):
-        pass
-
-    def on_update(self, state: State, event: Event, **kwargs):
-        pass
-
-    def on_end(self, state: State, event: Event, **kwargs):
-        pass
-
-    def on_event(self, state: State, event: Event, **kwargs):
-        pass
 
     def on_finalize(self, state: State, **kwargs) -> bool:
         """
@@ -162,6 +149,19 @@ class SmoothQuantModifier(Modifier):
 
         return True
 
+    def _infer_mappings_from_model(
+        self,
+        model: Module,
+    ) -> List[Tuple]:
+        if self.mappings is not None:
+            return self.mappings
+
+        logger.info("No SmoothQuantModifier.mappings provided, inferring from model...")
+        return get_layer_mappings_from_architecture(
+            architecture=model.__class__.__name__
+        )
+
+    @handle_mapping_resolution_errors
     def _resolve_mappings(self, model: Module) -> List:
         """
         Transforms the list of activations to smooth and their corresponding weights

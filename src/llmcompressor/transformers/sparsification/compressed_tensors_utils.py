@@ -57,7 +57,7 @@ def modify_save_pretrained(model: PreTrainedModel):
             if no config is provided it will be inferred from the model
             :param quantization_format: optional compression format for quantized
             models. If none is provided it will be inferred from the model
-            :param save_compresed: whether or not to compress the model on disk
+            :param save_compressed: whether or not to compress the model on disk
             :param skip_compression_stats: whether to skip the calculation of
             compression statistics (such as global sparsity and sparsity structure) when
             saving a model in dense format
@@ -71,7 +71,11 @@ def modify_save_pretrained(model: PreTrainedModel):
 
             model = model_ref()
             # state_dict gets passed in as a kwarg for FSDP models
-            state_dict = kwargs.get("state_dict", None)
+            state_dict = kwargs.pop("state_dict", None)
+
+            # find offloaded state dict if none is provided
+            if state_dict is None:
+                state_dict = get_state_dict_offloaded_model(model)
 
             if sparsity_config is not None:
                 sparsity_config.global_sparsity = (
@@ -91,7 +95,7 @@ def modify_save_pretrained(model: PreTrainedModel):
                     "skip_compression_stats=True"
                 )
                 sparsity_config = SparsityConfigMetadata.from_pretrained(
-                    model, state_dict=state_dict, compress=False
+                    model, state_dict=state_dict, compress=save_compressed
                 )
 
             quantization_format = infer_quantization_format(
@@ -109,22 +113,17 @@ def modify_save_pretrained(model: PreTrainedModel):
             if compressor is None:
                 # model is not compressed or quantized, save as normal
                 original_save_pretrained.__get__(model, model_class)(
-                    save_directory, **kwargs
+                    save_directory, state_dict=state_dict, **kwargs
                 )
                 return
-
-            # if we've gotten to this point we have a config so we can run compression
-            kwargs["safe_serialization"] = True
-            if state_dict is None:
-                state_dict = get_state_dict_offloaded_model(model)
 
             # make sure we're on the main process when saving
             if state_dict is not None and len(state_dict) > 0:
                 compressed_state_dict = compressor.compress(model, state_dict)
-                kwargs["state_dict"] = compressed_state_dict
 
+                kwargs["safe_serialization"] = kwargs.get("safe_serialization", True)
                 original_save_pretrained.__get__(model, model_class)(
-                    save_directory, **kwargs
+                    save_directory, state_dict=compressed_state_dict, **kwargs
                 )
                 compressor.update_config(save_directory)
 

@@ -3,7 +3,7 @@ import shutil
 import unittest
 
 import pytest
-from compressed_tensors.compressors.model_compressor import ModelCompressor
+from compressed_tensors.compressors import ModelCompressor
 from parameterized import parameterized_class
 from transformers import AutoConfig
 
@@ -41,12 +41,12 @@ class TestOneshotAndFinetune(unittest.TestCase):
         config_os = ModelCompressor.parse_sparsity_config(
             AutoConfig.from_pretrained(
                 os.path.join(self.output, "stage_test_oneshot")
-            ).compression_config
+            ).quantization_config
         )
         config_ft = ModelCompressor.parse_sparsity_config(
             AutoConfig.from_pretrained(
                 os.path.join(self.output, "stage_test_oneshot")
-            ).compression_config
+            ).quantization_config
         )
         assert config_ft["global_sparsity"] >= config_os["global_sparsity"]
 
