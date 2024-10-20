@@ -6,7 +6,7 @@ from llmcompressor.transformers import SparseAutoModelForCausalLM, oneshot
 from llmcompressor.transformers.compression.helpers import calculate_offload_device_map
 
 # 1) Select model and load it.
-MODEL_ID = "/home/chang/t9/release-models/google-gemma-2-9b-saju-240906"
+MODEL_ID = "/home/chang/t9/release-models/google-gemma-2-9b-saju-241018"
 device_map = calculate_offload_device_map(MODEL_ID, reserve_for_hessians=True, num_gpus=1)
 model = SparseAutoModelForCausalLM.from_pretrained(
     MODEL_ID,
@@ -16,13 +16,13 @@ model = SparseAutoModelForCausalLM.from_pretrained(
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 
 # 2) Prepare calibration dataset.
-DATASET_ID = "/home/chang/AI/llm/autoawq/calib_data/dataset/train"
+DATASET_ID = "/home/chang/t9/Models/calib_data_gemma/dataset/train"
 DATASET_SPLIT = "train_sft"
 
 # Select number of samples. 512 samples is a good place to start.
 # Increasing the number of samples can improve accuracy.
-NUM_CALIBRATION_SAMPLES = 4096
-MAX_SEQUENCE_LENGTH = 2048
+NUM_CALIBRATION_SAMPLES = 1024
+MAX_SEQUENCE_LENGTH = 1024
 
 # Load dataset and preprocess.
 ds = load_from_disk(DATASET_ID)
@@ -30,6 +30,7 @@ ds = ds.shuffle(seed=42).select(range(NUM_CALIBRATION_SAMPLES))
 
 
 def preprocess(example):
+    # print(example)
     return {
         "text": example["text"]
     }
@@ -64,7 +65,7 @@ oneshot(
     recipe=recipe,
     max_seq_length=MAX_SEQUENCE_LENGTH,
     num_calibration_samples=NUM_CALIBRATION_SAMPLES,
-    output_dir=MODEL_ID + "-int8",
+    output_dir=MODEL_ID + "/int8",
 )
 
 # Confirm generations of the quantized model look sane.
@@ -73,3 +74,5 @@ input_ids = tokenizer("Hello my name is", return_tensors="pt").input_ids.to("cud
 output = model.generate(input_ids, max_new_tokens=20)
 print(tokenizer.decode(output[0]))
 print("==========================================")
+
+
