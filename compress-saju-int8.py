@@ -6,7 +6,7 @@ from llmcompressor.transformers import SparseAutoModelForCausalLM, oneshot
 from llmcompressor.transformers.compression.helpers import calculate_offload_device_map
 
 # 1) Select model and load it.
-MODEL_ID = "/home/chang/t9/release-models/google-gemma-2-9b-saju-241018"
+MODEL_ID = "/home/chang/t9/release-models/google-gemma-2-9b-saju-241026"
 device_map = calculate_offload_device_map(MODEL_ID, reserve_for_hessians=True, num_gpus=1)
 model = SparseAutoModelForCausalLM.from_pretrained(
     MODEL_ID,
