@@ -6,8 +6,14 @@ from typing import Optional
 import torch
 import transformers
 from accelerate.accelerator import get_state_dict_offloaded_model
-from compressed_tensors import ModelCompressor, SparsityCompressionConfig
+from compressed_tensors import (
+    ModelCompressor,
+    SparsityCompressionConfig,
+    is_module_offloaded,
+    update_parameter_data,
+)
 from loguru import logger
+from safetensors.torch import storage_ptr
 from transformers import PreTrainedModel
 
 from llmcompressor.transformers.compression.quantization_format import (
@@ -144,3 +150,31 @@ def new_dtype_byte_size(dtype):
         raise ValueError(f"`dtype` is not a valid dtype: {dtype}.")
     bit_size = int(bit_search.groups()[0])
     return bit_size // 8
+
+
+def patch_tied_tensors_bug(model: torch.nn.Module):
+    """
+    Patches bug where HF transformers will fail to untie weights under specific
+    circumstances (https://github.com/huggingface/transformers/issues/33689).
+
+    This function detects those cases and unties the tensors if applicable
+
+    :param model: model to fix
+    """
+    if (
+        hasattr(model.config, "tie_word_embeddings")
+        and not model.config.tie_word_embeddings
+    ):
+        input_embed = model.get_input_embeddings()
+        output_embed = model.get_output_embeddings()
+
+        if storage_ptr(input_embed.weight) == storage_ptr(output_embed.weight):
+            for module in (input_embed, output_embed):
+                offloaded = is_module_offloaded(module)
+                if offloaded:
+                    module._hf_hook.pre_forward(module)
+
+                update_parameter_data(module, module.weight.data.clone(), "weight")
+
+                if offloaded:
+                    module._hf_hook.post_forward(module, None)
