@@ -12,7 +12,7 @@ args = parser.parse_args()
 
 # 1) Select model and load it.
 MODEL_ID = args.model
-device_map = calculate_offload_device_map(MODEL_ID, reserve_for_hessians=True, num_gpus=4)
+device_map = calculate_offload_device_map(MODEL_ID, reserve_for_hessians=True, num_gpus=1)
 model = SparseAutoModelForCausalLM.from_pretrained(
     MODEL_ID,
     device_map=device_map,
