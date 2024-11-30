@@ -4,6 +4,7 @@ from transformers import AutoTokenizer
 from llmcompressor.modifiers.quantization import GPTQModifier
 from llmcompressor.transformers import SparseAutoModelForCausalLM, oneshot
 from llmcompressor.transformers.compression.helpers import calculate_offload_device_map
+import torch
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="Quantize a model with GPTQ.")
@@ -12,10 +13,11 @@ args = parser.parse_args()
 
 # 1) Select model and load it.
 MODEL_ID = args.model
-device_map = calculate_offload_device_map(MODEL_ID, reserve_for_hessians=True, num_gpus=1)
+# device_map = calculate_offload_device_map(MODEL_ID, reserve_for_hessians=True, num_gpus=2)
+# print(f"{device_map=}")
 model = SparseAutoModelForCausalLM.from_pretrained(
     MODEL_ID,
-    device_map=device_map,
+    device_map="auto",
     torch_dtype="auto",
 )
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
@@ -26,7 +28,7 @@ DATASET_SPLIT = "train_sft"
 
 # Select number of samples. 512 samples is a good place to start.
 NUM_CALIBRATION_SAMPLES = 1024
-MAX_SEQUENCE_LENGTH = 1024
+MAX_SEQUENCE_LENGTH = 4096
 
 # Load dataset and preprocess.
 ds = load_from_disk(DATASET_ID)
