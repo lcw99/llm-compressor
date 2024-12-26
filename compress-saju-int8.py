@@ -74,7 +74,7 @@ ds = ds.map(tokenize, remove_columns=ds.column_names)
 # 3) Select quantization algorithms. In this case, we:
 #   * quantize the weights to int8 with GPTQ (static per channel)
 #   * quantize the activations to int8 (dynamic per token)
-recipe = GPTQModifier(sequential_update=True, targets="Linear", scheme="W8A8", ignore=["lm_head"], dampening_frac=0.5)
+recipe = GPTQModifier(targets="Linear", scheme="W8A8", ignore=["lm_head"])
 
 # 4) Apply quantization and save to disk compressed.
 oneshot(
