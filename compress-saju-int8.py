@@ -55,7 +55,8 @@ def preprocess2(example):
 ds2 = ds.map(preprocess2)
 
 from datasets import concatenate_datasets
-ds = concatenate_datasets([ds1, ds2])
+# ds = concatenate_datasets([ds1, ds2])
+ds = ds1
 ds = ds.shuffle(seed=43).select(range(len(ds)))
 
 # Tokenize inputs.
@@ -74,7 +75,7 @@ ds = ds.map(tokenize, remove_columns=ds.column_names)
 # 3) Select quantization algorithms. In this case, we:
 #   * quantize the weights to int8 with GPTQ (static per channel)
 #   * quantize the activations to int8 (dynamic per token)
-recipe = GPTQModifier(targets="Linear", scheme="W8A8", ignore=["lm_head"])
+recipe = GPTQModifier(dampening_frac=0.01, targets="Linear", scheme="W8A8", ignore=["lm_head"])
 
 # 4) Apply quantization and save to disk compressed.
 oneshot(
